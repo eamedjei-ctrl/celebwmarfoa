@@ -1,4 +1,6 @@
 # Netlify: plain static site. Everything (pages, photos, music) is in public/.
+# JS/CSS use Netlify's default caching (always revalidate), and index.html links them
+# with ?v=N, so a redeploy is picked up immediately. Bump N when changing them.
 
 [build]
   publish = "public"
@@ -8,13 +10,3 @@
   for = "/media/*"
   [headers.values]
     Cache-Control = "public, max-age=604800"
-
-[[headers]]
-  for = "/*.js"
-  [headers.values]
-    Cache-Control = "public, max-age=3600"
-
-[[headers]]
-  for = "/*.css"
-  [headers.values]
-    Cache-Control = "public, max-age=3600"
