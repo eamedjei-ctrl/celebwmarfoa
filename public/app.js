@@ -5,43 +5,61 @@ const $ = (s, el = document) => el.querySelector(s);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------------- Sparkles background ---------------- */
+// Glowing stars are pre-rendered once as small sprites; per-frame shadowBlur is very slow in Safari/Firefox.
 (() => {
   const c = $('#sparkles'), ctx = c.getContext('2d');
-  let w, h, dpr, stars = [], shooting = [];
+  const lowPower = innerWidth < 760 || (navigator.hardwareConcurrency || 8) <= 4;
+  let w = 0, h = 0, dpr = 1, stars = [], shooting = [];
   const colors = ['255,198,232', '216,194,255', '255,110,199', '255,255,255'];
+  const sprites = colors.map((col) => {
+    const s = document.createElement('canvas');
+    s.width = s.height = 32;
+    const g = s.getContext('2d');
+    const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, `rgba(${col},1)`); grad.addColorStop(.18, `rgba(${col},.9)`);
+    grad.addColorStop(.4, `rgba(${col},.25)`); grad.addColorStop(1, `rgba(${col},0)`);
+    g.fillStyle = grad; g.fillRect(0, 0, 32, 32);
+    return s;
+  });
   const resize = () => {
-    dpr = Math.min(devicePixelRatio || 1, 2);
-    w = c.width = innerWidth * dpr; h = c.height = innerHeight * dpr;
-    const n = Math.round(Math.min(140, (innerWidth * innerHeight) / 9000));
+    dpr = Math.min(devicePixelRatio || 1, 1.5);
+    const nw = Math.round(innerWidth * dpr), nh = Math.round(innerHeight * dpr);
+    if (nw === w && Math.abs(nh - h) < 150 * dpr && stars.length) { h = c.height = nh; return; } // mobile URL bar: keep stars
+    w = c.width = nw; h = c.height = nh;
+    const n = Math.round(Math.min(lowPower ? 60 : 130, (innerWidth * innerHeight) / 9000));
     stars = Array.from({ length: n }, () => ({
       x: Math.random() * w, y: Math.random() * h,
-      r: (Math.random() * 1.4 + .3) * dpr,
+      size: (Math.random() * 6 + 4) * dpr,
       v: (Math.random() * .25 + .05) * dpr,
       p: Math.random() * Math.PI * 2,
-      c: colors[(Math.random() * colors.length) | 0],
+      s: sprites[(Math.random() * sprites.length) | 0],
     }));
   };
+  let last = 0;
   const tick = (t) => {
+    const k = last ? Math.min((t - last) / 16.67, 3) : 1;
+    last = t;
     ctx.clearRect(0, 0, w, h);
     for (const s of stars) {
-      s.y -= s.v; if (s.y < -5) { s.y = h + 5; s.x = Math.random() * w; }
-      const a = .35 + .65 * Math.abs(Math.sin(t / 1400 + s.p));
-      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 7);
-      ctx.fillStyle = `rgba(${s.c},${a})`; ctx.shadowBlur = 8 * dpr; ctx.shadowColor = `rgba(${s.c},1)`;
-      ctx.fill();
+      s.y -= s.v * k; if (s.y < -10) { s.y = h + 10; s.x = Math.random() * w; }
+      ctx.globalAlpha = .35 + .65 * Math.abs(Math.sin(t / 1400 + s.p));
+      ctx.drawImage(s.s, s.x - s.size / 2, s.y - s.size / 2, s.size, s.size);
     }
-    if (Math.random() < .006) shooting.push({ x: Math.random() * w * .8, y: Math.random() * h * .4, life: 1, v: (8 + Math.random() * 6) * dpr });
-    shooting = shooting.filter((m) => (m.life -= .018) > 0);
+    ctx.globalAlpha = 1;
+    if (Math.random() < .005) shooting.push({ x: Math.random() * w * .8, y: Math.random() * h * .4, life: 1, v: (8 + Math.random() * 6) * dpr });
+    shooting = shooting.filter((m) => (m.life -= .018 * k) > 0);
     for (const m of shooting) {
-      m.x += m.v; m.y += m.v * .45;
+      m.x += m.v * k; m.y += m.v * .45 * k;
       const g = ctx.createLinearGradient(m.x, m.y, m.x - 90 * dpr, m.y - 40 * dpr);
       g.addColorStop(0, `rgba(255,230,245,${m.life})`); g.addColorStop(1, 'rgba(255,110,199,0)');
-      ctx.strokeStyle = g; ctx.lineWidth = 2 * dpr; ctx.shadowBlur = 12 * dpr; ctx.shadowColor = '#ff6ec7';
+      ctx.strokeStyle = g; ctx.lineWidth = 2 * dpr;
       ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x - 90 * dpr, m.y - 40 * dpr); ctx.stroke();
     }
     if (!reduceMotion) requestAnimationFrame(tick);
   };
-  addEventListener('resize', resize); resize(); requestAnimationFrame(tick);
+  let rt;
+  addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(resize, 150); });
+  resize(); requestAnimationFrame(tick);
 })();
 
 /* ---------------- Confetti ---------------- */
@@ -49,24 +67,30 @@ const confetti = (() => {
   const c = $('#confetti'), ctx = c.getContext('2d');
   let parts = [], running = false;
   const palette = ['#ff6ec7', '#f107a3', '#b44cff', '#7b2ff7', '#ffc6e8', '#d8c2ff', '#ffffff'];
-  const fit = () => { c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio; };
+  const D = Math.min(devicePixelRatio || 1, 1.5); // capped: 3x phone screens would push 9x the pixels
+  const fit = () => { c.width = innerWidth * D; c.height = innerHeight * D; };
   addEventListener('resize', fit); fit();
-  const loop = () => {
+  let last = 0;
+  const loop = (now) => {
+    const k = last ? Math.min((now - last) / 16.67, 3) : 1; // time-based: same speed at 60/120/144 Hz
+    last = now;
     ctx.clearRect(0, 0, c.width, c.height);
-    parts = parts.filter((p) => p.y < c.height + 40 && p.life-- > 0);
+    parts = parts.filter((p) => p.y < c.height + 40 && (p.life -= k) > 0);
     for (const p of parts) {
-      p.vx *= .99; p.vy += .12 * devicePixelRatio; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
-      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      p.vx *= Math.pow(.99, k); p.vy += .12 * D * k; p.x += p.vx * k; p.y += p.vy * k; p.rot += p.vr * k;
+      ctx.setTransform(Math.cos(p.rot), Math.sin(p.rot), -Math.sin(p.rot), Math.cos(p.rot), p.x, p.y);
       ctx.fillStyle = p.color;
-      if (p.shape === 'heart') { ctx.font = `${p.size * 2}px serif`; ctx.fillText('♥', -p.size, p.size); }
-      else { ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2 * (0.5 + Math.abs(Math.sin(p.rot * 2)))); }
-      ctx.restore();
+      if (p.shape === 'heart') { ctx.font = `${Math.round(p.size * 2)}px serif`; ctx.fillText('♥', -p.size, p.size); }
+      else ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2 * (0.5 + Math.abs(Math.sin(p.rot * 2))));
     }
-    if (parts.length) requestAnimationFrame(loop); else { running = false; ctx.clearRect(0, 0, c.width, c.height); }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (parts.length) requestAnimationFrame(loop);
+    else { running = false; last = 0; ctx.clearRect(0, 0, c.width, c.height); }
   };
   return (count = 180, originX = .5, originY = .45) => {
     if (reduceMotion) return;
-    const d = devicePixelRatio;
+    if (innerWidth < 760) count = Math.round(count * .55);
+    const d = D;
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2, s = (Math.random() * 9 + 4) * d;
       parts.push({
@@ -458,6 +482,11 @@ function renderGallery() {
   if (photos.length) { renderHeart(photos); renderCarousel(photos); renderFilm(photos); renderDrift(photos); }
   renderRibbon();
   document.querySelectorAll('.show').forEach((el) => showIO.observe(el));
+  // Pause showcase animations while they're scrolled out of view
+  const pauseIO = new IntersectionObserver((entries) => {
+    for (const e of entries) e.target.classList.toggle('offscreen', !e.isIntersecting);
+  }, { rootMargin: '200px 0px' });
+  document.querySelectorAll('.show, .ribbon').forEach((el) => pauseIO.observe(el));
   media.forEach((m, i) => {
     const tile = document.createElement('button');
     tile.className = 'tile';

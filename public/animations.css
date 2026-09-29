@@ -47,7 +47,7 @@
 
 /* Floaters */
 .floaters { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
-.fl { position: absolute; font-style: normal; will-change: transform; }
+.fl { position: absolute; font-style: normal; }
 .fl--hearts {
   bottom: -40px; color: var(--hue); font-size: calc(22px * var(--s)); opacity: .6; text-shadow: 0 0 12px var(--hue);
   animation: riseUp var(--dur) linear infinite; animation-delay: var(--delay);
@@ -88,24 +88,28 @@
   animation: coverGlint 4.5s ease-in-out infinite;
 }
 @keyframes coverGlint { 0%, 40% { transform: translateX(-60%); } 100% { transform: translateX(60%); } }
-.page .snap { opacity: 0; }
-.page.seen .snap { animation: dropIn 1s var(--ease) forwards; }
+/* Photos are always visible by default; the drop-in only plays once a page is on screen.
+   Keyframes avoid var() and filters so Safari/WebKit can't leave a photo stuck invisible. */
+.page.seen .snap { animation: dropIn 1s var(--ease) both; }
 .page.seen .snap--b { animation-delay: .25s; }
 .page.seen .snap--c { animation-delay: .5s; }
 @keyframes dropIn {
-  from { opacity: 0; transform: translateY(-30px) rotate(calc(var(--r, -2deg) * -3)) scale(1.1); }
-  to { opacity: 1; transform: rotate(var(--r, -2deg)); }
+  from { opacity: 0; transform: translateY(-30px) scale(1.1); }
+  to { opacity: 1; transform: none; }
 }
-.page.seen .snap img { animation: develop 2.6s ease-out forwards; }
-@keyframes develop { from { filter: sepia(1) brightness(1.6) blur(6px) contrast(.6); } to { filter: none; } }
-.page .snap::before { opacity: 0; }
-.page.seen .snap::before { animation: tape .5s var(--ease) .7s forwards; }
+/* "developing photo" look: a warm wash over the picture that fades away (no filter on the image) */
+.snap::after {
+  content: ''; position: absolute; inset: .55em .55em 2.2em; pointer-events: none; opacity: 0;
+  background: linear-gradient(160deg, #fff3dc, #f3d7b8);
+}
+.page.seen .snap::after { animation: develop 2.6s ease-out both; }
+@keyframes develop { from { opacity: .95; } to { opacity: 0; } }
+.page.seen .snap::before { animation: tape .5s var(--ease) .7s both; }
 @keyframes tape {
   from { opacity: 0; transform: translateX(-50%) rotate(-4deg) scale(1.6); }
   to { opacity: 1; transform: translateX(-50%) rotate(-4deg); }
 }
-.page .caption { opacity: 0; }
-.page.seen .caption { animation: rise 1s var(--ease) 1.1s forwards; }
+.page.seen .caption { animation: rise 1s var(--ease) 1.1s both; }
 .page.seen .quote-mark { display: inline-block; animation: pop 1s var(--ease) both, beat 2.4s ease-in-out 1s infinite; }
 @keyframes pop { from { transform: scale(0) rotate(-30deg); } }
 .page.seen .wishes li::before { display: inline-block; animation: spin 4s linear infinite; }
@@ -300,3 +304,47 @@
 
 /* Tilted ribbon / film strips must not cause sideways scrolling */
 .celebrate { overflow-x: clip; }
+
+/* =====================================================================
+   Performance & cross-browser smoothness
+   ===================================================================== */
+
+/* Background blobs: soft radial gradients instead of a 70px blur filter over the whole screen */
+.orbs { filter: none; will-change: transform; }
+.orbs span { will-change: transform; }
+.orbs span:nth-child(1) { background: radial-gradient(circle, rgba(123, 47, 247, .95) 0%, rgba(123, 47, 247, 0) 68%); }
+.orbs span:nth-child(2) { background: radial-gradient(circle, rgba(241, 7, 163, .95) 0%, rgba(241, 7, 163, 0) 68%); }
+.orbs span:nth-child(3) { background: radial-gradient(circle, rgba(255, 110, 199, .95) 0%, rgba(255, 110, 199, 0) 68%); }
+.orbs span:nth-child(4) { background: radial-gradient(circle, rgba(180, 76, 255, .95) 0%, rgba(180, 76, 255, 0) 68%); }
+
+/* Film grain: static texture (the animated version repainted a 2x-screen layer 5 times a second) */
+.grain { animation: none; inset: 0; }
+
+/* Scene transitions: fade + scale only; a full-screen blur transition stutters in Safari/Firefox */
+.stage, .stage.is-active { filter: none; }
+
+/* No blur filters inside the 3D book (WebKit can drop filtered content on flipped pages) */
+.page .ln { filter: none; }
+.split .ch { filter: none; }
+
+/* Pause everything in scenes that aren't on screen */
+.stage:not(.is-active) *, .stage:not(.is-active) *::before, .stage:not(.is-active) *::after { animation-play-state: paused !important; }
+
+/* Pause party showcases while scrolled out of view (class toggled in app.js) */
+.show.offscreen *, .ribbon.offscreen * { animation-play-state: paused !important; }
+
+/* Continuously moving pieces get their own compositor layers */
+.carousel__ring, .film__track, .ribbon__track, .drift__pic, .heart, .balloon { will-change: transform; }
+
+/* Older Safari (< 16) doesn't know overflow: clip */
+@supports not (overflow: clip) { .celebrate { overflow-x: hidden; } }
+
+/* Book faces: don't trust backface-visibility alone. WebKit/Safari ignores it when a page holds
+   animated/composited children (photos), painting the back of a leaf over its front (mirrored or
+   blank). Instead each face switches visibility exactly halfway through the turn, when the leaf is
+   edge-on, which works identically in every browser. */
+.leaf .face { transition: visibility 0s linear .55s; }
+.leaf .face--back { visibility: hidden; }
+.leaf.is-flipped .face--front { visibility: hidden; }
+.leaf.is-flipped .face--back { visibility: visible; }
+.book.single .leaf .face { transition-delay: .5s; }

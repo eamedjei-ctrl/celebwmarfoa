@@ -143,7 +143,6 @@ body.locked { overflow: hidden; }
   perspective: 2600px;
   transition: transform 1.2s var(--ease);
   cursor: pointer; user-select: none; -webkit-user-select: none;
-  filter: drop-shadow(0 40px 60px rgba(0, 0, 0, .55)) drop-shadow(0 0 60px rgba(180, 76, 255, .18));
 }
 .book.is-closed { transform: translateX(calc(var(--pw) * -.5)); }
 .book__base { position: absolute; top: 0; width: var(--pw); height: 100%; }
@@ -157,7 +156,11 @@ body.locked { overflow: hidden; }
 }
 .leaf.is-flipped { transform: rotateY(-180deg); }
 .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; }
+.face--front { transform: rotateY(0deg); } /* own 3D layer so Safari hides/shows faces and their photos correctly */
 .face--back { transform: rotateY(180deg); }
+/* soft shadow under the book (box-shadow on the static pages; a filter on the 3D book breaks Safari) */
+.book__base { box-shadow: 0 40px 70px -20px rgba(0, 0, 0, .6), 0 0 60px rgba(180, 76, 255, .15); border-radius: 14px; }
+.book.is-closed .book__base--left { box-shadow: none; }
 /* page-turn shading */
 .face::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .55s; }
 .face--front::after { background: linear-gradient(90deg, rgba(42, 15, 69, .35), transparent 60%); }
@@ -236,7 +239,7 @@ body.locked { overflow: hidden; }
 .snap {
   position: relative; margin: 0; background: #fff; padding: .55em .55em 2.2em;
   box-shadow: 0 12px 30px -10px rgba(59, 22, 80, .45);
-  transform: rotate(var(--r, -2deg));
+  rotate: var(--r, -2deg);
 }
 .snap::before { /* washi tape */
   content: ''; position: absolute; top: -.8em; left: 50%; width: 5em; height: 1.6em; transform: translateX(-50%) rotate(-4deg);
