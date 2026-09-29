@@ -32,3 +32,18 @@ API: `GET /api/media` · `POST /api/media` (multipart `files`, header `x-admin-k
 - `public/app.js` scenes, storybook, cake, photo showcases, lightbox, music playlist
 - `public/fx.js` sparkle trail, tap bursts, floaters, fireworks, balloons, tilt, magnetic buttons
 - `server/` Express API + bucket adapters (local / S3-compatible)
+
+## Deploy to Netlify
+
+`netlify.toml` publishes `public/` and runs the media API as a Netlify Function
+(`netlify/functions/media.mjs`) backed by **Netlify Blobs**, so photos and music live in Netlify's storage.
+
+1. Netlify → **Add new site → Import an existing project → GitHub** → pick `celebwmarfoa`. Settings are read from `netlify.toml`; click **Deploy**.
+2. **Site configuration → Environment variables** → add `ADMIN_KEY` (any secret) → **Deploys → Trigger deploy**.
+3. Upload the media from your machine (keeps the same order):
+   ```bash
+   SITE=https://<your-site>.netlify.app ADMIN_KEY=<same key> npm run push-media
+   ```
+   or drag files into `https://<your-site>.netlify.app/upload`.
+
+Limit: each upload must be under ~6 MB (Netlify Function request limit), so trim long videos before uploading.
