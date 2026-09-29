@@ -1,36 +1,20 @@
-# Netlify deploy config.
-# Static site = public/, media API = netlify/functions/media.mjs (Netlify Blobs storage).
-# Required environment variable (Site settings → Environment variables): ADMIN_KEY
+# Netlify: plain static site. Everything (pages, photos, music) is in public/.
 
 [build]
   publish = "public"
-  functions = "netlify/functions"
-  command = "echo 'No build step — static files in public/'"
-
-[build.environment]
-  NODE_VERSION = "20"
-
-[functions]
-  node_bundler = "esbuild"
-
-# The upload page is for Elton only; keep it out of search engines.
-[[headers]]
-  for = "/upload"
-  [headers.values]
-    X-Robots-Tag = "noindex"
+  command = ""
 
 [[headers]]
-  for = "/*.css"
+  for = "/media/*"
   [headers.values]
-    Cache-Control = "public, max-age=3600"
+    Cache-Control = "public, max-age=604800"
 
 [[headers]]
   for = "/*.js"
   [headers.values]
     Cache-Control = "public, max-age=3600"
 
-# /upload → upload.html (pretty URL, same as the local Express server)
-[[redirects]]
-  from = "/upload"
-  to = "/upload.html"
-  status = 200
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"

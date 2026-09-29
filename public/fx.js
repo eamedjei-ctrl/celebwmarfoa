@@ -1,3 +1,4 @@
+(() => {
 // Ambient effects: cursor trail, tap bursts, floaters, fireworks, balloons, text splitting, magnetic buttons.
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const PALETTE = ['#ff6ec7', '#f107a3', '#b44cff', '#7b2ff7', '#ffc6e8', '#d8c2ff', '#ffd166'];
@@ -11,7 +12,7 @@ function fitCanvas(c) {
 }
 
 /* ---------- Split text into letters (for waves / staggered reveals) ---------- */
-export function splitText(root = document) {
+function splitText(root = document) {
   root.querySelectorAll('[data-split]').forEach((el) => {
     if (el.dataset.splitDone) return;
     const text = el.textContent;
@@ -93,10 +94,10 @@ const trail = (() => {
   addEventListener('pointerdown', (e) => burst(e.clientX, e.clientY, e.pointerType === 'touch' ? 10 : 12), { passive: true });
   return { burst };
 })();
-export const burst = trail.burst;
+const burst = trail.burst;
 
 /* ---------- DOM floaters: rising hearts, falling petals, twinkling stars ---------- */
-export function floaters() {
+function floaters() {
   document.querySelectorAll('[data-floaters]').forEach((box) => {
     if (box.childElementCount || reduceMotion) return;
     const kind = box.dataset.floaters;
@@ -114,7 +115,7 @@ export function floaters() {
 }
 
 /* ---------- Fireworks ---------- */
-export const fireworks = (() => {
+const fireworks = (() => {
   const c = document.getElementById('fireworks');
   if (!c || reduceMotion) return { start() {}, stop() {} };
   const ctx = c.getContext('2d');
@@ -176,7 +177,7 @@ export const fireworks = (() => {
 })();
 
 /* ---------- Balloons you can pop ---------- */
-export function balloons(box, count = innerWidth < 700 ? 6 : 10) {
+function balloons(box, count = innerWidth < 700 ? 6 : 10) {
   if (!box || reduceMotion) return;
   const release = (delay) => setTimeout(() => {
     const b = document.createElement('button');
@@ -201,7 +202,7 @@ export function balloons(box, count = innerWidth < 700 ? 6 : 10) {
 }
 
 /* ---------- Magnetic buttons ---------- */
-export function magnet() {
+function magnet() {
   if (reduceMotion || matchMedia('(hover: none)').matches) return;
   document.querySelectorAll('.btn--magnet').forEach((b) => {
     b.addEventListener('pointermove', (e) => {
@@ -213,7 +214,7 @@ export function magnet() {
 }
 
 /* ---------- Parallax on the background orbs ---------- */
-export function parallax() {
+function parallax() {
   if (reduceMotion) return;
   const orbs = document.querySelector('.orbs');
   addEventListener('pointermove', (e) => {
@@ -223,7 +224,7 @@ export function parallax() {
 }
 
 /* ---------- 3D tilt on hover ---------- */
-export function tilt(el, max = 10) {
+function tilt(el, max = 10) {
   if (reduceMotion || matchMedia('(hover: none)').matches) return;
   el.addEventListener('pointermove', (e) => {
     const r = el.getBoundingClientRect();
@@ -233,3 +234,6 @@ export function tilt(el, max = 10) {
   });
   el.addEventListener('pointerleave', () => { el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg'); });
 }
+
+window.FX = { splitText, burst, floaters, fireworks, balloons, magnet, parallax, tilt };
+})();
