@@ -1,0 +1,20 @@
+{
+  "name": "marfoa-birthday",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "seed": "node server/seed.js",
+    "migrate": "node server/migrate.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "multer": "^2.4.0"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "^3.1142.0"
+  }
+}

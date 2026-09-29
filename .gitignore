@@ -1,0 +1,5 @@
+node_modules/
+bucket/
+.env
+.DS_Store
+seed/

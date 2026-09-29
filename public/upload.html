@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gallery Manager</title>
+  <meta name="robots" content="noindex">
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root { --night:#14061f; --plum:#2a0f45; --pink:#ff6ec7; --magenta:#f107a3; --violet:#7b2ff7; --ink:#fff4fb; --muted:#d9bfe6; --edge:rgba(255,200,240,.22); }
+    * { box-sizing: border-box; margin: 0; }
+    body { min-height: 100vh; background: radial-gradient(120% 90% at 50% 0%, #3a0f5c, var(--night) 60%); color: var(--ink); font-family: 'Outfit', sans-serif; padding: 40px 16px; }
+    main { width: min(900px, 100%); margin: 0 auto; display: grid; gap: 24px; }
+    h1 { font-family: 'Great Vibes', cursive; font-weight: 400; font-size: 3.2rem; color: #ffc6e8; }
+    p.sub { color: var(--muted); font-weight: 300; margin-top: -14px; }
+    .panel { border: 1px solid var(--edge); background: rgba(255,255,255,.05); border-radius: 22px; padding: 22px; display: grid; gap: 14px; }
+    label { font-size: .8rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+    input[type=password] { width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--edge); background: rgba(0,0,0,.25); color: var(--ink); font: inherit; }
+    .drop { border: 2px dashed var(--edge); border-radius: 18px; padding: 44px 20px; text-align: center; color: var(--muted); cursor: pointer; transition: .3s; }
+    .drop.over, .drop:hover { border-color: var(--pink); background: rgba(255,110,199,.08); color: var(--ink); }
+    .status { font-size: .9rem; color: var(--muted); min-height: 1.2em; }
+    .status.err { color: #ff8fa3; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .item { position: relative; aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: var(--plum); border: 1px solid var(--edge); }
+    .item img, .item video { width: 100%; height: 100%; object-fit: cover; }
+    .item .kind { position: absolute; left: 8px; bottom: 8px; font-size: .7rem; padding: 3px 8px; border-radius: 99px; background: rgba(20,6,31,.7); }
+    .item button { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(20,6,31,.75); color: var(--ink); cursor: pointer; }
+    .item button:hover { background: var(--magenta); }
+    a { color: var(--pink); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Gallery Manager</h1>
+    <p class="sub">Photos, videos and one audio track (plays as background music) go straight into the bucket. <a href="/">View site →</a></p>
+
+    <section class="panel">
+      <label for="key">Admin key</label>
+      <input type="password" id="key" placeholder="ADMIN_KEY from .env" autocomplete="current-password">
+    </section>
+
+    <section class="panel">
+      <div class="drop" id="drop" tabindex="0" role="button">Drop photos / videos here, or tap to choose</div>
+      <input type="file" id="file" accept="image/*,video/*,audio/*" multiple hidden>
+      <p class="status" id="status"></p>
+    </section>
+
+    <section class="panel">
+      <label>In the bucket</label>
+      <div class="grid" id="grid"></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const keyInput = $('#key');
+    try { keyInput.value = localStorage.getItem('adminKey') || ''; } catch {}
+    keyInput.addEventListener('change', () => { try { localStorage.setItem('adminKey', keyInput.value); } catch {} });
+    const status = (msg, err) => { $('#status').textContent = msg; $('#status').className = 'status' + (err ? ' err' : ''); };
+
+    async function load() {
+      const { items } = await (await fetch('/api/media')).json();
+      $('#grid').innerHTML = items.length ? '' : '<p class="status">Nothing yet.</p>';
+      for (const m of items) {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.innerHTML = (m.kind === 'video' ? `<video src="${m.url}#t=0.1" muted preload="metadata"></video>`
+          : m.kind === 'audio' ? `<div style="display:grid;place-items:center;height:100%;font-size:2rem">🎵</div>`
+          : `<img src="${m.url}" loading="lazy" alt="">`) + `<span class="kind">${m.kind}</span><button title="Delete">✕</button>`;
+        el.querySelector('button').onclick = async () => {
+          if (!confirm('Delete this from the bucket?')) return;
+          const r = await fetch('/api/media/' + m.key, { method: 'DELETE', headers: { 'x-admin-key': keyInput.value } });
+          r.ok ? load() : status((await r.json()).error || 'Delete failed', true);
+        };
+        $('#grid').appendChild(el);
+      }
+    }
+
+    async function send(files) {
+      if (!files.length) return;
+      const fd = new FormData();
+      [...files].forEach((f) => fd.append('files', f));
+      status(`Uploading ${files.length} file(s)…`);
+      const r = await fetch('/api/media', { method: 'POST', headers: { 'x-admin-key': keyInput.value }, body: fd });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) return status(body.error || 'Upload failed', true);
+      status(`Uploaded ${body.saved.length} file(s) ✨`);
+      load();
+    }
+
+    const drop = $('#drop'), file = $('#file');
+    drop.onclick = () => file.click();
+    drop.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') file.click(); };
+    file.onchange = () => { send(file.files); file.value = ''; };
+    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); send(e.dataTransfer.files); };
+    load();
+  </script>
+</body>
+</html>
