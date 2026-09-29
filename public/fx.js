@@ -176,6 +176,43 @@ const fireworks = (() => {
   };
 })();
 
+/* ---------- Balloon pop sound (synthesised, no audio file) ---------- */
+let popCtx;
+function popSound() {
+  try {
+    popCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (popCtx.state === 'suspended') popCtx.resume();
+    const now = popCtx.currentTime;
+    const out = popCtx.createGain();
+    out.gain.value = .9;
+    out.connect(popCtx.destination);
+
+    // the "snap": a very short burst of bright noise
+    const len = Math.floor(popCtx.sampleRate * .12);
+    const buf = popCtx.createBuffer(1, len, popCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 6);
+    const noise = popCtx.createBufferSource();
+    noise.buffer = buf;
+    noise.playbackRate.value = rand(.85, 1.2); // every pop sounds a little different
+    const hp = popCtx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 900;
+    noise.connect(hp).connect(out);
+    noise.start(now);
+
+    // the "body": a quick low thump that drops in pitch
+    const osc = popCtx.createOscillator();
+    const og = popCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(rand(180, 240), now);
+    osc.frequency.exponentialRampToValueAtTime(50, now + .09);
+    og.gain.setValueAtTime(.7, now);
+    og.gain.exponentialRampToValueAtTime(.001, now + .12);
+    osc.connect(og).connect(out);
+    osc.start(now); osc.stop(now + .13);
+  } catch {}
+}
+
 /* ---------- Balloons you can pop ---------- */
 function balloons(box, count = innerWidth < 700 ? 6 : 10) {
   if (!box || reduceMotion) return;
@@ -188,6 +225,8 @@ function balloons(box, count = innerWidth < 700 ? 6 : 10) {
       `--sway:${rand(-40, 40).toFixed(0)}px;--s:${rand(.75, 1.2).toFixed(2)}`;
     b.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
+      if (b.classList.contains('popped')) return;
+      popSound();
       burst(e.clientX, e.clientY, 18);
       b.classList.add('popped');
       setTimeout(() => b.remove(), 250);
